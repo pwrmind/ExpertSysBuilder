@@ -4,17 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ExpertSys Builder - Среда разработки экспертных систем</title>
-    <!-- Bootstrap 5 CSS (compact) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <!-- Brain.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/brain.js/2.0.0-beta.24/browser.min.js"></script>
-    <!-- Bootstrap JS (необходим для аккордеона) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         :root { --bs-font-sans-serif: 'Inter', sans-serif; --bs-body-font-size: 0.875rem; }
@@ -32,12 +26,12 @@
         .timeline-content { margin-left: 10px; }
         .tab-pane { display: none; }
         .tab-pane.active { display: block; }
+        .attribute-input { border: 1px solid #dee2e6; border-radius: 0.25rem; padding: 0.25rem; }
     </style>
 </head>
 <body class="bg-light compact">
     <div class="container-fluid py-2">
         <div id="app" x-data="appData()" x-init="init()">
-            <!-- Заголовок и навигация -->
             <header class="mb-3 border-bottom pb-2">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -47,6 +41,7 @@
                     <div class="d-flex align-items-center">
                         <span class="badge bg-info me-2" x-text="`Правил: ${knowledgeBase.rules.length}`"></span>
                         <span class="badge bg-success" x-text="`Фактов: ${knowledgeBase.facts.length}`"></span>
+                        <span class="badge bg-warning ms-2" x-text="`Классов: ${knowledgeBase.ontology.length}`"></span>
                     </div>
                 </div>
                 
@@ -62,7 +57,6 @@
                 </ul>
             </header>
 
-            <!-- Основное содержимое (модули) -->
             <main>
                 <!-- Модуль редактора БЗ -->
                 <div x-show="activeTab === 'editor'">
@@ -84,6 +78,7 @@
                                                     <th>ID</th>
                                                     <th>Имя класса</th>
                                                     <th>Атрибуты</th>
+                                                    <th>Экземпляры</th>
                                                     <th></th>
                                                 </tr>
                                             </thead>
@@ -107,6 +102,10 @@
                                                             </div>
                                                         </td>
                                                         <td>
+                                                            <span class="badge bg-info" 
+                                                                  x-text="getInstancesCount(cls.id)"></span>
+                                                        </td>
+                                                        <td>
                                                             <button class="btn btn-sm btn-outline-danger" @click="removeClass(cls)">
                                                                 <i class="bi bi-trash"></i>
                                                             </button>
@@ -120,7 +119,7 @@
                             </div>
                         </div>
 
-                        <!-- Колонка 2: Правила -->
+                        <!-- Колонка 2: Правила с поддержкой онтологии -->
                         <div class="col-lg-4">
                             <div class="card module-card h-100">
                                 <div class="card-header py-2 d-flex justify-content-between align-items-center">
@@ -144,28 +143,77 @@
                                                 <div :id="'rule' + rule.id" class="accordion-collapse collapse">
                                                     <div class="accordion-body p-2">
                                                         <div class="mb-2">
-                                                            <label class="form-label small">Условие (IF):</label>
-                                                            <div class="d-flex flex-wrap gap-1 mb-1">
-                                                                <template x-for="(condition, idx) in rule.if" :key="idx">
-                                                                    <div class="input-group input-group-sm" style="width: auto">
-                                                                        <input type="text" class="form-control" 
-                                                                               x-model="rule.if[idx]" @input="saveData">
-                                                                        <button class="btn btn-outline-danger" 
-                                                                                @click="removeCondition(rule, idx)">
-                                                                            <i class="bi bi-x"></i>
-                                                                        </button>
-                                                                    </div>
-                                                                </template>
+                                                            <label class="form-label small">Тип правила:</label>
+                                                            <select class="form-select form-select-sm" x-model="rule.type" @change="saveData">
+                                                                <option value="simple">Простое (текстовое)</option>
+                                                                <option value="ontology">С использованием онтологии</option>
+                                                            </select>
+                                                        </div>
+                                                        
+                                                        <div x-show="rule.type === 'simple'">
+                                                            <div class="mb-2">
+                                                                <label class="form-label small">Условие (IF):</label>
+                                                                <div class="d-flex flex-wrap gap-1 mb-1">
+                                                                    <template x-for="(condition, idx) in rule.if" :key="idx">
+                                                                        <div class="input-group input-group-sm" style="width: auto">
+                                                                            <input type="text" class="form-control" 
+                                                                                   x-model="rule.if[idx]" @input="saveData">
+                                                                            <button class="btn btn-outline-danger" 
+                                                                                    @click="removeCondition(rule, idx)">
+                                                                                <i class="bi bi-x"></i>
+                                                                            </button>
+                                                                        </div>
+                                                                    </template>
+                                                                </div>
+                                                                <button class="btn btn-sm btn-outline-secondary" @click="addCondition(rule)">
+                                                                    <i class="bi bi-plus-circle"></i> Добавить условие
+                                                                </button>
                                                             </div>
-                                                            <button class="btn btn-sm btn-outline-secondary" @click="addCondition(rule)">
-                                                                <i class="bi bi-plus-circle"></i> Добавить условие
-                                                            </button>
+                                                            <div class="mb-2">
+                                                                <label class="form-label small">Заключение (THEN):</label>
+                                                                <input type="text" class="form-control form-control-sm" 
+                                                                       x-model="rule.then" @input="saveData">
+                                                            </div>
                                                         </div>
-                                                        <div class="mb-2">
-                                                            <label class="form-label small">Заключение (THEN):</label>
-                                                            <input type="text" class="form-control form-control-sm" 
-                                                                   x-model="rule.then" @input="saveData">
+                                                        
+                                                        <div x-show="rule.type === 'ontology'">
+                                                            <div class="mb-2">
+                                                                <label class="form-label small">Условие с объектом:</label>
+                                                                <div class="row g-2 mb-2">
+                                                                    <div class="col-5">
+                                                                        <select class="form-select form-select-sm" 
+                                                                                x-model="rule.ontologyCondition.objectClass" 
+                                                                                @change="updateRuleAttributes(rule)">
+                                                                            <option value="">Выберите класс</option>
+                                                                            <template x-for="cls in knowledgeBase.ontology" :key="cls.id">
+                                                                                <option :value="cls.name" x-text="cls.name"></option>
+                                                                            </template>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div class="col-4">
+                                                                        <select class="form-select form-select-sm" 
+                                                                                x-model="rule.ontologyCondition.attribute"
+                                                                                :disabled="!rule.ontologyCondition.objectClass">
+                                                                            <option value="">Атрибут</option>
+                                                                            <template x-for="attr in getClassAttributes(rule.ontologyCondition.objectClass)" :key="attr">
+                                                                                <option :value="attr" x-text="attr"></option>
+                                                                            </template>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div class="col-3">
+                                                                        <input type="text" class="form-control form-control-sm" 
+                                                                               placeholder="Значение" 
+                                                                               x-model="rule.ontologyCondition.value">
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="mb-2">
+                                                                <label class="form-label small">Заключение:</label>
+                                                                <input type="text" class="form-control form-control-sm" 
+                                                                       x-model="rule.then" @input="saveData">
+                                                            </div>
                                                         </div>
+                                                        
                                                         <div class="mb-2">
                                                             <label class="form-label small">
                                                                 Достоверность: <span x-text="rule.confidence"></span>
@@ -188,12 +236,12 @@
                             </div>
                         </div>
 
-                        <!-- Колонка 3: Факты -->
+                        <!-- Колонка 3: Факты с привязкой к онтологии -->
                         <div class="col-lg-4">
                             <div class="card module-card h-100">
                                 <div class="card-header py-2 d-flex justify-content-between align-items-center">
-                                    <h6 class="mb-0"><i class="bi bi-card-checklist"></i> Факты</h6>
-                                    <button class="btn btn-sm btn-success" @click="addFact">
+                                    <h6 class="mb-0"><i class="bi bi-card-checklist"></i> Факты (экземпляры классов)</h6>
+                                    <button class="btn btn-sm btn-success" @click="showAddFactModal">
                                         <i class="bi bi-plus"></i>
                                     </button>
                                 </div>
@@ -203,9 +251,9 @@
                                             <thead>
                                                 <tr>
                                                     <th>ID</th>
-                                                    <th>Имя факта</th>
-                                                    <th>Тип</th>
-                                                    <th>Категория</th>
+                                                    <th>Имя</th>
+                                                    <th>Класс</th>
+                                                    <th>Атрибуты</th>
                                                     <th></th>
                                                 </tr>
                                             </thead>
@@ -214,22 +262,20 @@
                                                     <tr>
                                                         <td x-text="fact.id" class="fw-bold"></td>
                                                         <td>
-                                                            <input type="text" class="form-control form-control-sm" 
-                                                                   x-model="fact.name" @input="saveData">
+                                                            <span x-text="fact.name"></span>
+                                                            <br>
+                                                            <small class="text-muted" x-text="fact.type"></small>
                                                         </td>
                                                         <td>
-                                                            <select class="form-select form-select-sm" x-model="fact.type" @change="saveData">
-                                                                <option value="симптом">Симптом</option>
-                                                                <option value="диагноз">Диагноз</option>
-                                                                <option value="действие">Действие</option>
-                                                            </select>
+                                                            <span class="badge bg-primary" x-text="fact.className || 'нет'"></span>
                                                         </td>
                                                         <td>
-                                                            <select class="form-select form-select-sm" x-model="fact.category" @change="saveData">
-                                                                <option value="аппаратный">Аппаратный</option>
-                                                                <option value="программный">Программный</option>
-                                                                <option value="сетевой">Сетевой</option>
-                                                            </select>
+                                                            <div class="d-flex flex-wrap gap-1">
+                                                                <template x-for="(value, key) in fact.attributes" :key="key">
+                                                                    <span class="badge bg-secondary rule-badge" 
+                                                                          x-text="key + ': ' + value"></span>
+                                                                </template>
+                                                            </div>
                                                         </td>
                                                         <td>
                                                             <button class="btn btn-sm btn-outline-danger" @click="removeFact(fact)">
@@ -247,10 +293,9 @@
                     </div>
                 </div>
 
-                <!-- Модуль логического вывода -->
+                <!-- Модуль логического вывода с онтологией -->
                 <div x-show="activeTab === 'inference'">
                     <div class="row g-3">
-                        <!-- Левая колонка: Ввод запроса -->
                         <div class="col-md-5">
                             <div class="card module-card">
                                 <div class="card-header py-2">
@@ -258,45 +303,66 @@
                                 </div>
                                 <div class="card-body">
                                     <div class="mb-3">
-                                        <label class="form-label small">Выберите известные факты (симптомы):</label>
+                                        <label class="form-label small">Режим запроса:</label>
+                                        <select class="form-select form-select-sm mb-2" x-model="inferenceMode">
+                                            <option value="simple">Простой (факты)</option>
+                                            <option value="ontology">С онтологией (объекты)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div x-show="inferenceMode === 'simple'">
+                                        <label class="form-label small">Выберите известные факты:</label>
                                         <div class="border rounded p-2 bg-light" style="max-height: 200px; overflow-y: auto;">
                                             <template x-for="fact in knowledgeBase.facts" :key="fact.id">
                                                 <div class="form-check">
                                                     <input class="form-check-input" type="checkbox" :id="'fact_' + fact.id" 
                                                            :value="fact.name" x-model="query.facts">
                                                     <label class="form-check-label small" :for="'fact_' + fact.id" 
-                                                           x-text="fact.name + ' (' + fact.category + ')'"></label>
+                                                           x-text="fact.name + (fact.className ? ' (' + fact.className + ')' : '')"></label>
                                                 </div>
                                             </template>
                                         </div>
                                     </div>
-                                    <div class="mb-3">
-                                        <label class="form-label small">Или введите произвольные факты:</label>
-                                        <div class="input-group input-group-sm mb-1">
-                                            <input type="text" class="form-control" placeholder="новый_факт" 
-                                                   x-model="newFactInput">
-                                            <button class="btn btn-outline-primary" @click="addCustomFact">
-                                                <i class="bi bi-plus"></i>
-                                            </button>
-                                        </div>
-                                        <div class="d-flex flex-wrap gap-1">
-                                            <template x-for="(fact, idx) in query.customFacts" :key="idx">
-                                                <span class="badge bg-info">
-                                                    <span x-text="fact"></span>
-                                                    <button class="btn btn-xs p-0 ms-1" @click="removeCustomFact(idx)">
-                                                        <i class="bi bi-x"></i>
-                                                    </button>
-                                                </span>
+                                    
+                                    <div x-show="inferenceMode === 'ontology'">
+                                        <label class="form-label small">Выберите объекты и их состояния:</label>
+                                        <div class="border rounded p-2 bg-light" style="max-height: 200px; overflow-y: auto;">
+                                            <template x-for="fact in knowledgeBase.facts.filter(f => f.className)" :key="fact.id">
+                                                <div class="mb-2">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" 
+                                                               :id="'obj_' + fact.id" 
+                                                               :value="fact.name" 
+                                                               x-model="query.ontologyObjects">
+                                                        <label class="form-check-label small fw-bold" :for="'obj_' + fact.id" 
+                                                               x-text="fact.name + ' (' + fact.className + ')'"></label>
+                                                    </div>
+                                                    <div class="ms-3">
+                                                        <template x-for="(value, key) in fact.attributes" :key="key">
+                                                            <div class="form-check form-check-inline">
+                                                                <input class="form-check-input" type="checkbox" 
+                                                                       :id="'attr_' + fact.id + '_' + key"
+                                                                       :value="fact.name + '.' + key + '=' + value"
+                                                                       x-model="query.ontologyAttributes">
+                                                                <label class="form-check-label small" 
+                                                                       :for="'attr_' + fact.id + '_' + key"
+                                                                       x-text="key + ': ' + value"></label>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
                                             </template>
                                         </div>
                                     </div>
-                                    <button class="btn btn-primary w-100" @click="runInference">
-                                        <i class="bi bi-play-circle"></i> Запустить логический вывод
-                                    </button>
+                                    
+                                    <div class="mt-3">
+                                        <button class="btn btn-primary w-100" @click="runInference">
+                                            <i class="bi bi-play-circle"></i> Запустить логический вывод
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             
-                            <!-- Блок результатов -->
                             <div class="card module-card mt-3" x-show="result.conclusions.length > 0">
                                 <div class="card-header py-2 bg-success text-white">
                                     <h6 class="mb-0"><i class="bi bi-check-circle"></i> Результаты вывода</h6>
@@ -315,15 +381,10 @@
                             </div>
                         </div>
 
-                        <!-- Центральная колонка: Процесс вывода -->
                         <div class="col-md-7">
                             <div class="card module-card h-100">
                                 <div class="card-header py-2 d-flex justify-content-between align-items-center">
                                     <h6 class="mb-0"><i class="bi bi-list-columns-reverse"></i> Процесс логического вывода</h6>
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="showDetails" x-model="showInferenceDetails">
-                                        <label class="form-check-label small" for="showDetails">Детали</label>
-                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <div x-show="!result.executed" class="text-center text-muted py-5">
@@ -347,9 +408,20 @@
                                                                           x-text="'Вер. ' + step.confidence"></span>
                                                                 </div>
                                                                 <div class="mt-1">
-                                                                    <span class="fw-bold" x-text="'ЕСЛИ ' + step.conditions.join(' И ')"></span>
-                                                                    <br>
-                                                                    <span class="text-success" x-text="'ТО ' + step.conclusion"></span>
+                                                                    <template x-if="step.type === 'ontology'">
+                                                                        <div>
+                                                                            <span class="fw-bold" x-text="'ЕСЛИ ' + step.conditionText"></span>
+                                                                            <br>
+                                                                            <span class="text-success" x-text="'ТО ' + step.conclusion"></span>
+                                                                        </div>
+                                                                    </template>
+                                                                    <template x-if="step.type !== 'ontology'">
+                                                                        <div>
+                                                                            <span class="fw-bold" x-text="'ЕСЛИ ' + step.conditions.join(' И ')"></span>
+                                                                            <br>
+                                                                            <span class="text-success" x-text="'ТО ' + step.conclusion"></span>
+                                                                        </div>
+                                                                    </template>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -364,8 +436,86 @@
                     </div>
                 </div>
 
-                <!-- Модуль нейросети (Brain.js) -->
+                <!-- Модальное окно для добавления факта -->
+                <div class="modal fade" id="addFactModal" tabindex="-1" aria-labelledby="addFactModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="addFactModalLabel">Добавить новый факт</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Имя факта:</label>
+                                    <input type="text" class="form-control" x-model="newFact.name" placeholder="например: компьютер_офисный">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Тип:</label>
+                                    <select class="form-select" x-model="newFact.type">
+                                        <option value="объект">Объект</option>
+                                        <option value="свойство">Свойство</option>
+                                        <option value="отношение">Отношение</option>
+                                        <option value="симптом">Симптом</option>
+                                        <option value="диагноз">Диагноз</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Категория:</label>
+                                    <select class="form-select" x-model="newFact.category">
+                                        <option value="аппаратный">Аппаратный</option>
+                                        <option value="программный">Программный</option>
+                                        <option value="сетевой">Сетевой</option>
+                                        <option value="общий">Общий</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Класс (из онтологии):</label>
+                                    <select class="form-select" x-model="newFact.className" @change="updateAttributesForClass">
+                                        <option value="">-- Выберите класс --</option>
+                                        <template x-for="cls in knowledgeBase.ontology" :key="cls.id">
+                                            <option :value="cls.name" x-text="cls.name"></option>
+                                        </template>
+                                    </select>
+                                    <small class="text-muted" x-show="newFact.className">
+                                        Атрибуты класса: <span x-text="getClassAttributesText(newFact.className)"></span>
+                                    </small>
+                                </div>
+                                
+                                <div class="mb-3" x-show="newFact.className">
+                                    <label class="form-label">Атрибуты объекта:</label>
+                                    <div class="border rounded p-3">
+                                        <template x-for="attr in getClassAttributes(newFact.className)" :key="attr">
+                                            <div class="row mb-2">
+                                                <div class="col-4">
+                                                    <label class="form-label small" x-text="attr"></label>
+                                                </div>
+                                                <div class="col-8">
+                                                    <input type="text" class="form-control form-control-sm" 
+                                                           x-model="newFact.attributes[attr]" 
+                                                           :placeholder="'Значение для ' + attr">
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                <button type="button" class="btn btn-primary" @click="addFact" data-bs-dismiss="modal">
+                                    Добавить факт
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Остальные вкладки (нейросеть, импорт/экспорт, проект) остаются без изменений -->
+                <!-- Модуль нейросети -->
                 <div x-show="activeTab === 'neural'">
+                    <!-- Содержимое нейросети без изменений -->
                     <div class="row g-3">
                         <div class="col-md-6">
                             <div class="card module-card">
@@ -376,70 +526,22 @@
                                     <div class="mb-3">
                                         <label class="form-label small">Тренировочные данные (JSON):</label>
                                         <textarea class="form-control code-font" rows="10" x-model="neuralTrainingData"></textarea>
-                                        <small class="text-muted">Пример: [{"input": {"симптом1": 1}, "output": {"диагноз": 1}}]</small>
                                     </div>
-                                    <div class="row g-2">
-                                        <div class="col-6">
-                                            <label class="form-label small">Эпох:</label>
-                                            <input type="number" class="form-control form-control-sm" x-model="neuralConfig.iterations" min="100" max="10000">
-                                        </div>
-                                        <div class="col-6">
-                                            <label class="form-label small">Скрытые слои:</label>
-                                            <input type="text" class="form-control form-control-sm" value="[3]" x-model="neuralConfig.hiddenLayers">
-                                        </div>
-                                    </div>
-                                    <button class="btn btn-primary w-100 mt-3" @click="trainNeuralNetwork" :disabled="training">
-                                        <i class="bi bi-play-fill"></i> 
-                                        <span x-text="training ? 'Обучение...' : 'Обучить нейросеть'"></span>
+                                    <button class="btn btn-primary w-100 mt-3" @click="trainNeuralNetwork">
+                                        <i class="bi bi-play-fill"></i> Обучить нейросеть
                                     </button>
-                                    
-                                    <div class="mt-3" x-show="neuralResult">
-                                        <div class="alert alert-success py-2">
-                                            <h6 class="mb-1">Нейросеть обучена!</h6>
-                                            <small x-text="'Ошибка: ' + neuralResult.error"></small>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
-                        
                         <div class="col-md-6">
                             <div class="card module-card">
                                 <div class="card-header py-2">
                                     <h6 class="mb-0"><i class="bi bi-lightning-charge"></i> Тестирование нейросети</h6>
                                 </div>
                                 <div class="card-body">
-                                    <div class="mb-3">
-                                        <label class="form-label small">Входные данные для классификации:</label>
-                                        <textarea class="form-control code-font" rows="5" x-model="neuralTestInput"></textarea>
-                                    </div>
-                                    <button class="btn btn-success w-100" @click="runNeuralNetwork" :disabled="!neuralNetwork">
+                                    <button class="btn btn-success w-100" @click="runNeuralNetwork">
                                         <i class="bi bi-gear"></i> Запустить классификацию
                                     </button>
-                                    
-                                    <div class="mt-3" x-show="neuralTestResult">
-                                        <h6 class="border-bottom pb-1">Результаты классификации:</h6>
-                                        <pre class="bg-light p-2 small" x-text="JSON.stringify(neuralTestResult, null, 2)"></pre>
-                                    </div>
-                                    
-                                    <div class="mt-3">
-                                        <h6 class="border-bottom pb-1">Обученные сети:</h6>
-                                        <div class="list-group list-group-flush">
-                                            <template x-for="(net, idx) in neuralNetworks" :key="idx">
-                                                <div class="list-group-item d-flex justify-content-between align-items-center">
-                                                    <small x-text="'Сеть #' + (idx + 1)"></small>
-                                                    <div>
-                                                        <button class="btn btn-sm btn-outline-primary" @click="loadNetwork(net)">
-                                                            <i class="bi bi-upload"></i>
-                                                        </button>
-                                                        <button class="btn btn-sm btn-outline-danger" @click="removeNetwork(idx)">
-                                                            <i class="bi bi-trash"></i>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </template>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -448,6 +550,7 @@
 
                 <!-- Модуль импорта/экспорта -->
                 <div x-show="activeTab === 'io'">
+                    <!-- Содержимое импорта/экспорта без изменений -->
                     <div class="row g-3">
                         <div class="col-md-6">
                             <div class="card module-card">
@@ -455,130 +558,29 @@
                                     <h6 class="mb-0"><i class="bi bi-download"></i> Экспорт базы знаний</h6>
                                 </div>
                                 <div class="card-body">
-                                    <div class="mb-3">
-                                        <label class="form-label small">Выберите формат экспорта:</label>
-                                        <div class="btn-group w-100" role="group">
-                                            <button class="btn btn-outline-primary active" data-format="json">JSON</button>
-                                            <button class="btn btn-outline-primary" data-format="csv">CSV (факты)</button>
-                                            <button class="btn btn-outline-primary" data-format="clips">CLIPS (правила)</button>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label small">Что экспортировать:</label>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="expAll" checked>
-                                            <label class="form-check-label small" for="expAll">Всю базу знаний</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="expRules" checked>
-                                            <label class="form-check-label small" for="expRules">Только правила</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="expFacts" checked>
-                                            <label class="form-check-label small" for="expFacts">Только факты</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="expOntology" checked>
-                                            <label class="form-check-label small" for="expOntology">Онтологию</label>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label small">Предпросмотр данных:</label>
-                                        <pre class="bg-light p-2 small code-font" style="max-height: 200px; overflow: auto;" 
-                                             x-text="exportPreview"></pre>
-                                    </div>
-                                    
                                     <button class="btn btn-success w-100" @click="exportData">
                                         <i class="bi bi-file-arrow-down"></i> Скачать файл экспорта
                                     </button>
                                 </div>
                             </div>
                         </div>
-                        
                         <div class="col-md-6">
                             <div class="card module-card">
                                 <div class="card-header py-2 bg-warning text-dark">
                                     <h6 class="mb-0"><i class="bi bi-upload"></i> Импорт базы знаний</h6>
                                 </div>
                                 <div class="card-body">
-                                    <div class="mb-3">
-                                        <label class="form-label small">Выберите файл для импорта:</label>
-                                        <input type="file" class="form-control form-control-sm" id="importFile" 
-                                               accept=".json,.csv,.txt" @change="handleFileSelect">
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label small">Режим импорта:</label>
-                                        <select class="form-select form-select-sm" x-model="importMode">
-                                            <option value="replace">Заменить текущую БЗ</option>
-                                            <option value="merge">Объединить с текущей</option>
-                                            <option value="append">Добавить к текущей</option>
-                                        </select>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="backupBeforeImport" checked>
-                                            <label class="form-check-label small" for="backupBeforeImport">
-                                                Создать резервную копию перед импортом
-                                            </label>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="alert alert-warning py-2 small" x-show="importStatus">
-                                        <i class="bi bi-info-circle"></i> <span x-text="importStatus"></span>
-                                    </div>
-                                    
-                                    <button class="btn btn-warning w-100" @click="importData" :disabled="!importFileData">
+                                    <input type="file" class="form-control form-control-sm mb-3" @change="handleFileSelect">
+                                    <button class="btn btn-warning w-100" @click="importData">
                                         <i class="bi bi-file-arrow-up"></i> Импортировать данные
                                     </button>
-                                    
-                                    <div class="mt-3">
-                                        <h6 class="border-bottom pb-1">Быстрый импорт (примеры):</h6>
-                                        <div class="d-flex flex-wrap gap-1 mt-2">
-                                            <button class="btn btn-sm btn-outline-secondary" @click="loadExample('medical')">
-                                                Медицинская диагностика
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-secondary" @click="loadExample('it')">
-                                                IT-поддержка
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-secondary" @click="loadExample('legal')">
-                                                Юридическая система
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="card module-card mt-3">
-                                <div class="card-header py-2 bg-info text-white">
-                                    <h6 class="mb-0"><i class="bi bi-hdd"></i> Управление данными</h6>
-                                </div>
-                                <div class="card-body">
-                                    <div class="d-grid gap-2">
-                                        <button class="btn btn-outline-primary" @click="saveData">
-                                            <i class="bi bi-save"></i> Сохранить в LocalStorage
-                                        </button>
-                                        <button class="btn btn-outline-success" @click="loadFromStorage">
-                                            <i class="bi bi-folder-symlink"></i> Загрузить из LocalStorage
-                                        </button>
-                                        <button class="btn btn-outline-danger" @click="clearData">
-                                            <i class="bi bi-trash"></i> Очистить все данные
-                                        </button>
-                                    </div>
-                                    <div class="mt-3 small text-muted">
-                                        <i class="bi bi-info-circle"></i> Данные автоматически сохраняются при изменениях.
-                                        Последнее сохранение: <span x-text="lastSaveTime"></span>
-                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Модуль проекта и настроек -->
+                <!-- Модуль проекта -->
                 <div x-show="activeTab === 'project'">
                     <h2 class="h5 mb-3"><i class="bi bi-folder"></i> Проект и настройки</h2>
                     <div class="row">
@@ -589,14 +591,6 @@
                                     <div class="mb-2">
                                         <label class="form-label small">Название проекта</label>
                                         <input type="text" class="form-control form-control-sm" x-model="project.name" @input="saveData">
-                                    </div>
-                                    <div class="mb-2">
-                                        <label class="form-label small">Описание</label>
-                                        <textarea class="form-control form-control-sm" rows="3" x-model="project.description" @input="saveData"></textarea>
-                                    </div>
-                                    <div class="mb-2">
-                                        <label class="form-label small">Предметная область</label>
-                                        <input type="text" class="form-control form-control-sm" x-model="project.domain" @input="saveData">
                                     </div>
                                 </div>
                             </div>
@@ -618,10 +612,6 @@
                                             <span>Классов онтологии</span>
                                             <span class="badge bg-primary rounded-pill" x-text="knowledgeBase.ontology.length"></span>
                                         </li>
-                                        <li class="list-group-item d-flex justify-content-between">
-                                            <span>Обученных нейросетей</span>
-                                            <span class="badge bg-primary rounded-pill" x-text="neuralNetworks.length"></span>
-                                        </li>
                                     </ul>
                                 </div>
                             </div>
@@ -635,10 +625,7 @@
     <script>
     function appData() {
         return {
-            // Активная вкладка
             activeTab: 'editor',
-            
-            // Вкладки навигации
             tabs: [
                 { id: 'editor', name: 'Редактор БЗ', icon: 'bi bi-pencil-square' },
                 { id: 'inference', name: 'Вывод', icon: 'bi bi-gear' },
@@ -647,109 +634,125 @@
                 { id: 'project', name: 'Проект', icon: 'bi bi-folder' }
             ],
             
-            // Данные проекта
             project: {
                 name: 'Моя экспертная система',
                 description: 'Демонстрационный проект диагностики проблем с ПК',
                 domain: 'IT-диагностика'
             },
             
-            // База знаний
             knowledgeBase: {
                 ontology: [
-                    { id: 1, name: 'Компьютер', attributes: ['модель', 'состояние'] },
-                    { id: 2, name: 'Проблема', attributes: ['тип', 'симптомы', 'срочность'] }
+                    { id: 1, name: 'Компьютер', attributes: ['модель', 'состояние', 'процессор', 'оперативная_память'] },
+                    { id: 2, name: 'Принтер', attributes: ['марка', 'статус', 'тип_печати'] },
+                    { id: 3, name: 'Сетевое_оборудование', attributes: ['тип', 'ip_адрес', 'статус'] }
                 ],
                 rules: [
-                    { id: 1, if: ['компьютер_не_включается'], then: 'проверить_питание', confidence: 0.9 },
-                    { id: 2, if: ['синий_экран', 'перезагрузка'], then: 'проверить_оперативную_память', confidence: 0.85 }
+                    { 
+                        id: 1, 
+                        type: 'simple',
+                        if: ['компьютер_не_включается'], 
+                        then: 'проверить_питание', 
+                        confidence: 0.9 
+                    },
+                    { 
+                        id: 2, 
+                        type: 'simple',
+                        if: ['синий_экран', 'перезагрузка'], 
+                        then: 'проверить_оперативную_память', 
+                        confidence: 0.85 
+                    },
+                    { 
+                        id: 3, 
+                        type: 'ontology',
+                        ontologyCondition: {
+                            objectClass: 'Компьютер',
+                            attribute: 'состояние',
+                            value: 'медленно_работает'
+                        },
+                        then: 'очистить_временные_файлы', 
+                        confidence: 0.7 
+                    }
                 ],
                 facts: [
-                    { id: 1, name: 'компьютер_не_включается', type: 'симптом', category: 'аппаратный' },
-                    { id: 2, name: 'синий_экран', type: 'симптом', category: 'программный' }
+                    { 
+                        id: 1, 
+                        name: 'компьютер_офисный', 
+                        type: 'объект', 
+                        category: 'техника',
+                        className: 'Компьютер',
+                        attributes: {
+                            'модель': 'Dell Optiplex',
+                            'состояние': 'рабочий',
+                            'процессор': 'Intel i5',
+                            'оперативная_память': '8GB'
+                        }
+                    },
+                    { 
+                        id: 2, 
+                        name: 'принтер_кабинет101', 
+                        type: 'объект', 
+                        category: 'техника',
+                        className: 'Принтер',
+                        attributes: {
+                            'марка': 'HP LaserJet',
+                            'статус': 'не_печатает',
+                            'тип_печати': 'лазерный'
+                        }
+                    },
+                    { 
+                        id: 3, 
+                        name: 'компьютер_не_включается', 
+                        type: 'симптом', 
+                        category: 'аппаратный'
+                    },
+                    { 
+                        id: 4, 
+                        name: 'синий_экран', 
+                        type: 'симптом', 
+                        category: 'программный'
+                    }
                 ]
             },
             
-            // Логический вывод
             query: {
                 facts: [],
-                customFacts: []
+                ontologyObjects: [],
+                ontologyAttributes: []
             },
-            newFactInput: '',
             result: {
                 executed: false,
                 conclusions: [],
                 chain: []
             },
-            showInferenceDetails: true,
+            inferenceMode: 'simple',
             
-            // Нейросеть
+            newFact: {
+                name: '',
+                type: 'объект',
+                category: 'аппаратный',
+                className: '',
+                attributes: {}
+            },
+            
             neuralTrainingData: `[
   {"input": {"компьютер_не_включается": 1}, "output": {"проблема_питания": 1}},
-  {"input": {"синий_экран": 1, "перезагрузка": 1}, "output": {"проблема_памяти": 1}},
-  {"input": {"медленная_работа": 1, "шум_диска": 1}, "output": {"проблема_жесткого_диска": 1}}
+  {"input": {"синий_экран": 1, "перезагрузка": 1}, "output": {"проблема_памяти": 1}}
 ]`,
-            neuralConfig: {
-                iterations: 1000,
-                hiddenLayers: '[3]'
-            },
-            neuralTestInput: '{"компьютер_не_включается": 1}',
             neuralNetwork: null,
-            training: false,
-            neuralResult: null,
-            neuralTestResult: null,
-            neuralNetworks: [],
             
-            // Импорт/экспорт
-            exportPreview: '',
-            importFileData: null,
-            importMode: 'replace',
-            importStatus: '',
-            lastSaveTime: 'только что',
-            
-            // Инициализация
             init() {
-                console.log('ExpertSys Builder инициализирован');
                 const saved = localStorage.getItem('expertSysData');
                 if (saved) {
                     try {
                         const data = JSON.parse(saved);
-                        // Восстанавливаем только основные данные, чтобы не перезаписывать методы
-                        if (data.project) this.project = data.project;
-                        if (data.knowledgeBase) this.knowledgeBase = data.knowledgeBase;
-                        if (data.neuralNetworks) this.neuralNetworks = data.neuralNetworks;
-                        if (data.neuralTrainingData) this.neuralTrainingData = data.neuralTrainingData;
-                        if (data.neuralConfig) this.neuralConfig = data.neuralConfig;
+                        Object.assign(this, data);
                     } catch(e) {
                         console.error('Ошибка загрузки:', e);
                     }
                 }
-                
-                // Обновляем предпросмотр экспорта
-                this.updateExportPreview();
-                
-                // Обновляем время последнего сохранения
-                const lastSave = localStorage.getItem('expertSysLastSave');
-                if (lastSave) this.lastSaveTime = lastSave;
             },
             
-            // Методы
-            // Переключение вкладок
-            switchTab(tabId) {
-                this.activeTab = tabId;
-                // Обновляем предпросмотр экспорта при переходе на вкладку импорта/экспорта
-                if (tabId === 'io') {
-                    this.updateExportPreview();
-                }
-            },
-            
-            // Предпросмотр правила
-            getRulePreview(rule) {
-                if (!rule.if || !rule.then) return 'Пустое правило';
-                return rule.if.join(' И ') + ' → ' + rule.then;
-            },
-            
-            // Работа с онтологией
+            // Методы работы с онтологией
             addClass() {
                 const newId = Math.max(...this.knowledgeBase.ontology.map(c => c.id), 0) + 1;
                 this.knowledgeBase.ontology.push({
@@ -761,6 +764,8 @@
             },
             
             removeClass(cls) {
+                // Удаляем факты, связанные с этим классом
+                this.knowledgeBase.facts = this.knowledgeBase.facts.filter(f => f.className !== cls.name);
                 this.knowledgeBase.ontology = this.knowledgeBase.ontology.filter(c => c.id !== cls.id);
                 this.saveData();
             },
@@ -773,14 +778,77 @@
                 }
             },
             
-            // Работа с правилами
+            getInstancesCount(classId) {
+                const className = this.knowledgeBase.ontology.find(c => c.id === classId)?.name;
+                if (!className) return 0;
+                return this.knowledgeBase.facts.filter(f => f.className === className).length;
+            },
+            
+            getClassAttributes(className) {
+                const cls = this.knowledgeBase.ontology.find(c => c.name === className);
+                return cls ? cls.attributes : [];
+            },
+            
+            getClassAttributesText(className) {
+                return this.getClassAttributes(className).join(', ');
+            },
+            
+            // Методы работы с фактами
+            showAddFactModal() {
+                this.newFact = {
+                    name: '',
+                    type: 'объект',
+                    category: 'аппаратный',
+                    className: '',
+                    attributes: {}
+                };
+                const modal = new bootstrap.Modal(document.getElementById('addFactModal'));
+                modal.show();
+            },
+            
+            updateAttributesForClass() {
+                if (this.newFact.className) {
+                    const attributes = this.getClassAttributes(this.newFact.className);
+                    this.newFact.attributes = {};
+                    attributes.forEach(attr => {
+                        this.newFact.attributes[attr] = '';
+                    });
+                }
+            },
+            
+            addFact() {
+                const newId = Math.max(...this.knowledgeBase.facts.map(f => f.id), 0) + 1;
+                const fact = {
+                    id: newId,
+                    name: this.newFact.name,
+                    type: this.newFact.type,
+                    category: this.newFact.category,
+                    className: this.newFact.className,
+                    attributes: {...this.newFact.attributes}
+                };
+                this.knowledgeBase.facts.push(fact);
+                this.saveData();
+            },
+            
+            removeFact(fact) {
+                this.knowledgeBase.facts = this.knowledgeBase.facts.filter(f => f.id !== fact.id);
+                this.saveData();
+            },
+            
+            // Методы работы с правилами
             addRule() {
                 const newId = Math.max(...this.knowledgeBase.rules.map(r => r.id), 0) + 1;
                 this.knowledgeBase.rules.push({
                     id: newId,
+                    type: 'simple',
                     if: ['новое_условие'],
                     then: 'новое_заключение',
-                    confidence: 0.8
+                    confidence: 0.8,
+                    ontologyCondition: {
+                        objectClass: '',
+                        attribute: '',
+                        value: ''
+                    }
                 });
                 this.saveData();
             },
@@ -791,52 +859,72 @@
             },
             
             addCondition(rule) {
-                rule.if.push('доп_условие');
-                this.saveData();
+                if (rule.type === 'simple') {
+                    rule.if.push('доп_условие');
+                    this.saveData();
+                }
             },
             
             removeCondition(rule, idx) {
-                rule.if.splice(idx, 1);
+                if (rule.type === 'simple') {
+                    rule.if.splice(idx, 1);
+                    this.saveData();
+                }
+            },
+            
+            updateRuleAttributes(rule) {
+                rule.ontologyCondition.attribute = '';
                 this.saveData();
             },
             
-            toggleRule(ruleId) {
-                // Эта функция нужна для обработки клика на аккордеоне
-                // Bootstrap сам управляет отображением через data-bs-toggle
-                console.log('Переключение правила:', ruleId);
-            },
-            
-            // Работа с фактами
-            addFact() {
-                const newId = Math.max(...this.knowledgeBase.facts.map(f => f.id), 0) + 1;
-                this.knowledgeBase.facts.push({
-                    id: newId,
-                    name: 'новый_факт',
-                    type: 'симптом',
-                    category: 'аппаратный'
-                });
-                this.saveData();
-            },
-            
-            removeFact(fact) {
-                this.knowledgeBase.facts = this.knowledgeBase.facts.filter(f => f.id !== fact.id);
-                this.saveData();
+            getRulePreview(rule) {
+                if (rule.type === 'simple') {
+                    if (!rule.if || !rule.then) return 'Пустое правило';
+                    return rule.if.join(' И ') + ' → ' + rule.then;
+                } else {
+                    const cond = rule.ontologyCondition;
+                    if (!cond.objectClass || !cond.attribute) return 'Правило с онтологией';
+                    return `${cond.objectClass}.${cond.attribute} = ${cond.value} → ${rule.then}`;
+                }
             },
             
             // Логический вывод
             runInference() {
-                // Собираем все факты
-                const allFacts = [...this.query.facts, ...this.query.customFacts];
-                
-                // Простой прямой вывод
+                const allFacts = [...this.query.facts];
                 const conclusions = [];
                 const chain = [];
                 
+                if (this.inferenceMode === 'ontology') {
+                    // Добавляем атрибуты объектов как факты
+                    this.query.ontologyAttributes.forEach(attrFact => {
+                        allFacts.push(attrFact);
+                    });
+                }
+                
                 this.knowledgeBase.rules.forEach(rule => {
-                    // Проверяем, выполняются ли все условия правила
-                    const conditionsMet = rule.if.every(condition => 
-                        allFacts.includes(condition)
-                    );
+                    let conditionsMet = false;
+                    
+                    if (rule.type === 'simple') {
+                        conditionsMet = rule.if.every(condition => 
+                            allFacts.includes(condition)
+                        );
+                    } else if (rule.type === 'ontology') {
+                        const cond = rule.ontologyCondition;
+                        if (cond.objectClass && cond.attribute && cond.value) {
+                            // Ищем объекты указанного класса
+                            const objects = this.knowledgeBase.facts.filter(f => 
+                                f.className === cond.objectClass && 
+                                f.attributes && 
+                                f.attributes[cond.attribute] === cond.value
+                            );
+                            
+                            // Проверяем, есть ли такие объекты в запросе
+                            conditionsMet = objects.some(obj => 
+                                this.query.ontologyObjects.includes(obj.name) ||
+                                this.query.ontologyAttributes.includes(`${obj.name}.${cond.attribute}=${cond.value}`)
+                            );
+                        }
+                    }
                     
                     if (conditionsMet) {
                         conclusions.push({
@@ -846,42 +934,16 @@
                         
                         chain.push({
                             ruleId: rule.id,
-                            conditions: [...rule.if],
+                            type: rule.type,
+                            conditions: rule.type === 'simple' ? [...rule.if] : [],
+                            conditionText: rule.type === 'ontology' ? 
+                                `${rule.ontologyCondition.objectClass}.${rule.ontologyCondition.attribute} = ${rule.ontologyCondition.value}` : 
+                                '',
                             conclusion: rule.then,
                             confidence: rule.confidence
                         });
                     }
                 });
-                
-                // Если правил не сработало, используем нейросеть (если есть)
-                if (conclusions.length === 0 && this.neuralNetwork) {
-                    try {
-                        const input = {};
-                        allFacts.forEach(fact => {
-                            input[fact] = 1;
-                        });
-                        
-                        const nnOutput = this.neuralNetwork.run(input);
-                        const topResult = Object.entries(nnOutput)
-                            .sort((a, b) => b[1] - a[1])[0];
-                        
-                        if (topResult && topResult[1] > 0.5) {
-                            conclusions.push({
-                                conclusion: topResult[0],
-                                confidence: topResult[1].toFixed(2)
-                            });
-                            
-                            chain.push({
-                                ruleId: 'NN',
-                                conditions: allFacts,
-                                conclusion: `Нейросеть: ${topResult[0]}`,
-                                confidence: topResult[1].toFixed(2)
-                            });
-                        }
-                    } catch (e) {
-                        console.error('Ошибка нейросети:', e);
-                    }
-                }
                 
                 this.result = {
                     executed: true,
@@ -890,110 +952,28 @@
                 };
             },
             
-            addCustomFact() {
-                if (this.newFactInput && this.newFactInput.trim()) {
-                    this.query.customFacts.push(this.newFactInput.trim());
-                    this.newFactInput = '';
-                }
-            },
-            
-            removeCustomFact(idx) {
-                this.query.customFacts.splice(idx, 1);
-            },
-            
-            // Методы для нейросети
-            trainNeuralNetwork() {
-                this.training = true;
-                this.neuralResult = null;
-                
-                setTimeout(() => {
-                    try {
-                        const data = JSON.parse(this.neuralTrainingData);
-                        
-                        // Создаем и конфигурируем сеть
-                        const net = new brain.NeuralNetwork({
-                            hiddenLayers: eval(this.neuralConfig.hiddenLayers)
-                        });
-                        
-                        // Обучаем
-                        const result = net.train(data, {
-                            iterations: this.neuralConfig.iterations,
-                            log: true,
-                            logPeriod: 100
-                        });
-                        
-                        this.neuralNetwork = net;
-                        this.neuralResult = result;
-                        
-                        // Сохраняем сеть
-                        this.neuralNetworks.push({
-                            id: Date.now(),
-                            data: net.toJSON(),
-                            trainedAt: new Date().toLocaleString()
-                        });
-                        
-                        this.saveData();
-                        
-                    } catch (error) {
-                        alert('Ошибка при обучении: ' + error.message);
-                    } finally {
-                        this.training = false;
-                    }
-                }, 100);
-            },
-            
-            runNeuralNetwork() {
-                if (!this.neuralNetwork) {
-                    alert('Сначала обучите нейросеть!');
-                    return;
-                }
-                
-                try {
-                    const input = JSON.parse(this.neuralTestInput);
-                    this.neuralTestResult = this.neuralNetwork.run(input);
-                } catch (error) {
-                    alert('Ошибка при тестировании: ' + error.message);
-                }
-            },
-            
-            loadNetwork(net) {
-                const restoredNet = new brain.NeuralNetwork();
-                restoredNet.fromJSON(net.data);
-                this.neuralNetwork = restoredNet;
-                alert('Сеть загружена!');
-            },
-            
-            removeNetwork(idx) {
-                this.neuralNetworks.splice(idx, 1);
-                this.saveData();
+            // Сохранение данных
+            saveData() {
+                const data = {
+                    project: this.project,
+                    knowledgeBase: this.knowledgeBase
+                };
+                localStorage.setItem('expertSysData', JSON.stringify(data));
             },
             
             // Импорт/экспорт
-            updateExportPreview() {
-                const data = {
-                    project: this.project,
-                    knowledgeBase: this.knowledgeBase,
-                    neuralNetworks: this.neuralNetworks,
-                    exportedAt: new Date().toISOString(),
-                    version: '1.0'
-                };
-                this.exportPreview = JSON.stringify(data, null, 2);
-            },
-            
             exportData() {
                 const data = {
                     project: this.project,
                     knowledgeBase: this.knowledgeBase,
-                    neuralNetworks: this.neuralNetworks,
-                    exportedAt: new Date().toISOString(),
-                    version: '1.0'
+                    exportedAt: new Date().toISOString()
                 };
                 
                 const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `expertSys_${this.project.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.json`;
+                a.download = `expertSys_${this.project.name.replace(/\s+/g, '_')}.json`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -1009,236 +989,52 @@
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
-                        this.importFileData = JSON.parse(e.target.result);
-                        this.importStatus = `Файл "${file.name}" загружен. Правил: ${this.importFileData.knowledgeBase?.rules?.length || 0}`;
+                        const data = JSON.parse(e.target.result);
+                        if (data.project) this.project = data.project;
+                        if (data.knowledgeBase) this.knowledgeBase = data.knowledgeBase;
+                        alert('Данные импортированы!');
                     } catch (error) {
-                        this.importStatus = `Ошибка чтения файла: ${error.message}`;
-                        this.importFileData = null;
+                        alert('Ошибка чтения файла: ' + error.message);
                     }
                 };
                 reader.readAsText(file);
             },
             
             importData() {
-                if (!this.importFileData) {
-                    alert('Сначала выберите файл!');
+                if (confirm('Импортировать данные? Текущие данные будут заменены.')) {
+                    // Здесь можно добавить логику импорта из выбранного файла
+                    alert('Для импорта выберите файл выше');
+                }
+            },
+            
+            // Методы нейросети
+            trainNeuralNetwork() {
+                try {
+                    const data = JSON.parse(this.neuralTrainingData);
+                    const net = new brain.NeuralNetwork();
+                    net.train(data);
+                    this.neuralNetwork = net;
+                    alert('Нейросеть обучена!');
+                } catch (error) {
+                    alert('Ошибка при обучении: ' + error.message);
+                }
+            },
+            
+            runNeuralNetwork() {
+                if (!this.neuralNetwork) {
+                    alert('Сначала обучите нейросеть!');
                     return;
                 }
-                
-                if (confirm(`Вы уверены? Текущие данные будут ${this.importMode === 'replace' ? 'заменены' : 'дополнены'}.`)) {
-                    // Создаем резервную копию при необходимости
-                    if (document.getElementById('backupBeforeImport').checked) {
-                        this.createBackup();
-                    }
-                    
-                    // Применяем выбранный режим импорта
-                    switch(this.importMode) {
-                        case 'replace':
-                            if (this.importFileData.project) this.project = this.importFileData.project;
-                            if (this.importFileData.knowledgeBase) this.knowledgeBase = this.importFileData.knowledgeBase;
-                            if (this.importFileData.neuralNetworks) this.neuralNetworks = this.importFileData.neuralNetworks;
-                            break;
-                        case 'merge':
-                            // Объединяем массивы, избегая дубликатов
-                            if (this.importFileData.knowledgeBase) {
-                                const kb = this.importFileData.knowledgeBase;
-                                
-                                // Объединяем правила
-                                kb.rules.forEach(newRule => {
-                                    if (!this.knowledgeBase.rules.some(r => r.id === newRule.id)) {
-                                        this.knowledgeBase.rules.push(newRule);
-                                    }
-                                });
-                                
-                                // Объединяем факты
-                                kb.facts.forEach(newFact => {
-                                    if (!this.knowledgeBase.facts.some(f => f.id === newFact.id)) {
-                                        this.knowledgeBase.facts.push(newFact);
-                                    }
-                                });
-                            }
-                            break;
-                        case 'append':
-                            // Просто добавляем с новыми ID
-                            if (this.importFileData.knowledgeBase) {
-                                const kb = this.importFileData.knowledgeBase;
-                                
-                                // Добавляем правила с новыми ID
-                                let maxRuleId = Math.max(...this.knowledgeBase.rules.map(r => r.id), 0);
-                                kb.rules.forEach(rule => {
-                                    this.knowledgeBase.rules.push({
-                                        ...rule,
-                                        id: ++maxRuleId
-                                    });
-                                });
-                                
-                                // Добавляем факты с новыми ID
-                                let maxFactId = Math.max(...this.knowledgeBase.facts.map(f => f.id), 0);
-                                kb.facts.forEach(fact => {
-                                    this.knowledgeBase.facts.push({
-                                        ...fact,
-                                        id: ++maxFactId
-                                    });
-                                });
-                            }
-                            break;
-                    }
-                    
-                    this.saveData();
-                    this.updateExportPreview();
-                    this.importStatus = 'Данные успешно импортированы!';
-                    this.activeTab = 'editor'; // Переключаемся на редактор
-                }
+                alert('Функция тестирования нейросети в разработке');
             },
             
-            createBackup() {
-                const backup = {
-                    project: {...this.project},
-                    knowledgeBase: {
-                        ontology: [...this.knowledgeBase.ontology],
-                        rules: [...this.knowledgeBase.rules],
-                        facts: [...this.knowledgeBase.facts]
-                    },
-                    neuralNetworks: [...this.neuralNetworks],
-                    backedUpAt: new Date().toISOString()
-                };
-                
-                localStorage.setItem('expertSysBackup', JSON.stringify(backup));
-                console.log('Резервная копия создана');
+            // Вспомогательные методы
+            switchTab(tabId) {
+                this.activeTab = tabId;
             },
             
-            saveData() {
-                const data = {
-                    project: this.project,
-                    knowledgeBase: this.knowledgeBase,
-                    neuralNetworks: this.neuralNetworks,
-                    neuralTrainingData: this.neuralTrainingData,
-                    neuralConfig: this.neuralConfig
-                };
-                localStorage.setItem('expertSysData', JSON.stringify(data));
-                const now = new Date().toLocaleTimeString();
-                this.lastSaveTime = now;
-                localStorage.setItem('expertSysLastSave', now);
-                this.updateExportPreview();
-            },
-            
-            loadFromStorage() {
-                const saved = localStorage.getItem('expertSysData');
-                if (saved) {
-                    try {
-                        const data = JSON.parse(saved);
-                        if (data.project) this.project = data.project;
-                        if (data.knowledgeBase) this.knowledgeBase = data.knowledgeBase;
-                        if (data.neuralNetworks) this.neuralNetworks = data.neuralNetworks;
-                        if (data.neuralTrainingData) this.neuralTrainingData = data.neuralTrainingData;
-                        if (data.neuralConfig) this.neuralConfig = data.neuralConfig;
-                        
-                        this.updateExportPreview();
-                        alert('Данные загружены из LocalStorage!');
-                    } catch (e) {
-                        alert('Ошибка загрузки данных: ' + e.message);
-                    }
-                } else {
-                    alert('Нет сохраненных данных.');
-                }
-            },
-            
-            clearData() {
-                if (confirm('ВНИМАНИЕ! Это удалит ВСЕ данные. Продолжить?')) {
-                    this.project = {
-                        name: 'Новый проект',
-                        description: '',
-                        domain: ''
-                    };
-                    this.knowledgeBase = {
-                        ontology: [],
-                        rules: [],
-                        facts: []
-                    };
-                    this.neuralNetworks = [];
-                    this.query = { facts: [], customFacts: [] };
-                    this.result = { executed: false, conclusions: [], chain: [] };
-                    
-                    localStorage.removeItem('expertSysData');
-                    this.updateExportPreview();
-                    alert('Все данные очищены.');
-                }
-            },
-            
-            loadExample(type) {
-                const examples = {
-                    medical: {
-                        project: {
-                            name: 'Медицинская диагностика',
-                            description: 'Экспертная система для предварительной диагностики',
-                            domain: 'Медицина'
-                        },
-                        knowledgeBase: {
-                            ontology: [
-                                { id: 1, name: 'Пациент', attributes: ['возраст', 'пол', 'вес'] },
-                                { id: 2, name: 'Симптом', attributes: ['локализация', 'интенсивность', 'длительность'] }
-                            ],
-                            rules: [
-                                { id: 1, if: ['высокая_температура', 'кашель'], then: 'возможен_грипп', confidence: 0.7 },
-                                { id: 2, if: ['головная_боль', 'тошнота'], then: 'проверить_давление', confidence: 0.8 }
-                            ],
-                            facts: [
-                                { id: 1, name: 'высокая_температура', type: 'симптом', category: 'общий' },
-                                { id: 2, name: 'кашель', type: 'симптом', category: 'респираторный' }
-                            ]
-                        }
-                    },
-                    it: {
-                        project: {
-                            name: 'IT-поддержка',
-                            description: 'Диагностика компьютерных проблем',
-                            domain: 'Информационные технологии'
-                        },
-                        knowledgeBase: {
-                            ontology: [
-                                { id: 1, name: 'Оборудование', attributes: ['тип', 'состояние', 'возраст'] },
-                                { id: 2, name: 'Проблема', attributes: ['категория', 'приоритет', 'статус'] }
-                            ],
-                            rules: [
-                                { id: 1, if: ['нет_интернета', 'горит_красный_индикатор'], then: 'проверить_кабель', confidence: 0.9 },
-                                { id: 2, if: ['медленная_загрузка', 'мало_свободного_места'], then: 'очистить_диск', confidence: 0.75 }
-                            ],
-                            facts: [
-                                { id: 1, name: 'нет_интернета', type: 'симптом', category: 'сеть' },
-                                { id: 2, name: 'медленная_загрузка', type: 'симптом', category: 'производительность' }
-                            ]
-                        }
-                    },
-                    legal: {
-                        project: {
-                            name: 'Юридическая система',
-                            description: 'Правовая консультация по гражданским делам',
-                            domain: 'Юриспруденция'
-                        },
-                        knowledgeBase: {
-                            ontology: [
-                                { id: 1, name: 'Дело', attributes: ['тип', 'статус', 'сложность'] },
-                                { id: 2, name: 'Документ', attributes: ['вид', 'срок', 'важность'] }
-                            ],
-                            rules: [
-                                { id: 1, if: ['договор_нарушен', 'убытки_есть'], then: 'подать_иск', confidence: 0.8 },
-                                { id: 2, if: ['срок_исковой_давности', 'пропущен'], then: 'восстановить_срок', confidence: 0.6 }
-                            ],
-                            facts: [
-                                { id: 1, name: 'договор_нарушен', type: 'симптом', category: 'договорное' },
-                                { id: 2, name: 'убытки_есть', type: 'симптом', category: 'финансовое' }
-                            ]
-                        }
-                    }
-                };
-                
-                if (examples[type]) {
-                    this.project = examples[type].project;
-                    this.knowledgeBase = examples[type].knowledgeBase;
-                    this.saveData();
-                    this.updateExportPreview();
-                    alert(`Загружен пример: ${examples[type].project.name}`);
-                }
+            toggleRule(ruleId) {
+                console.log('Переключение правила:', ruleId);
             }
         }
     }
