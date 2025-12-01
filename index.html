@@ -495,6 +495,32 @@
                                         <textarea class="form-control code-font" rows="10" x-model="neuralTrainingData"></textarea>
                                         <small class="text-muted">Пример: [{"input": {"симптом1": 1}, "output": {"диагноз": 1}}]</small>
                                     </div>
+                                    
+                                    <!-- Новый блок: Загрузка данных из базы знаний -->
+                                    <div class="mb-3">
+                                        <label class="form-label small">Загрузка данных из базы знаний:</label>
+                                        <div class="d-flex gap-2 mb-2">
+                                            <button class="btn btn-sm btn-info" @click="loadTrainingDataFromKB">
+                                                <i class="bi bi-database"></i> Загрузить из правил БЗ
+                                            </button>
+                                            <button class="btn btn-sm btn-info" @click="loadFactsAsTrainingData">
+                                                <i class="bi bi-card-checklist"></i> Загрузить факты
+                                            </button>
+                                            <button class="btn btn-sm btn-warning" @click="clearTrainingData">
+                                                <i class="bi bi-trash"></i> Очистить
+                                            </button>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" id="includeOntology" x-model="includeOntologyInTraining">
+                                            <label class="form-check-label small" for="includeOntology">Включать онтологические правила</label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" id="appendMode" x-model="appendTrainingMode">
+                                            <label class="form-check-label small" for="appendMode">Добавить к текущим данным</label>
+                                        </div>
+                                        <small class="text-muted" x-text="trainingDataStats"></small>
+                                    </div>
+                                    
                                     <div class="row g-2">
                                         <div class="col-6">
                                             <label class="form-label small">Эпох:</label>
@@ -991,6 +1017,11 @@
             neuralTestResult: null,
             neuralNetworks: [],
             
+            // Новые переменные для загрузки данных из БЗ
+            includeOntologyInTraining: false,
+            appendTrainingMode: false,
+            trainingDataStats: '',
+            
             // Импорт/экспорт
             exportPreview: '',
             importFileData: null,
@@ -1022,6 +1053,9 @@
                 // Обновляем время последнего сохранения
                 const lastSave = localStorage.getItem('expertSysLastSave');
                 if (lastSave) this.lastSaveTime = lastSave;
+                
+                // Обновляем статистику тренировочных данных
+                this.updateTrainingDataStats();
             },
             
             // Методы
@@ -1031,6 +1065,10 @@
                 // Обновляем предпросмотр экспорта при переходе на вкладку импорта/экспорта
                 if (tabId === 'io') {
                     this.updateExportPreview();
+                }
+                // Обновляем статистику при переходе на вкладку нейросети
+                if (tabId === 'neural') {
+                    this.updateTrainingDataStats();
                 }
             },
             
@@ -1362,6 +1400,166 @@
                 this.saveData();
             },
             
+            // НОВЫЕ МЕТОДЫ: Загрузка данных из базы знаний для обучения нейросети
+            updateTrainingDataStats() {
+                try {
+                    const data = JSON.parse(this.neuralTrainingData);
+                    this.trainingDataStats = `Примеров: ${data.length}`;
+                } catch(e) {
+                    this.trainingDataStats = 'Неверный формат данных';
+                }
+            },
+            
+            loadTrainingDataFromKB() {
+                const trainingExamples = [];
+                
+                // Собираем все уникальные факты и заключения
+                const allFacts = new Set();
+                const allConclusions = new Set();
+                
+                // Обрабатываем правила в зависимости от настроек
+                this.knowledgeBase.rules.forEach(rule => {
+                    if (rule.type === 'simple') {
+                        // Для простых правил
+                        rule.if.forEach(fact => allFacts.add(fact));
+                        allConclusions.add(rule.then);
+                        
+                        // Создаем пример для обучения
+                        const input = {};
+                        rule.if.forEach(fact => {
+                            input[fact] = 1;
+                        });
+                        
+                        const output = {};
+                        output[rule.then] = 1;
+                        
+                        trainingExamples.push({ input, output });
+                    } else if (rule.type === 'ontology' && this.includeOntologyInTraining) {
+                        // Для онтологических правил
+                        const cond = rule.ontologyCondition;
+                        if (cond.objectClass && cond.attribute && cond.value) {
+                            // Ищем факты этого класса
+                            const matchingFacts = this.knowledgeBase.facts.filter(f => 
+                                f.className === cond.objectClass && 
+                                f.attributes && 
+                                f.attributes[cond.attribute] === cond.value
+                            );
+                            
+                            matchingFacts.forEach(fact => {
+                                // Используем имя факта как вход
+                                const input = {};
+                                input[fact.name] = 1;
+                                
+                                // Добавляем атрибуты как дополнительные входные данные
+                                Object.keys(fact.attributes || {}).forEach(attr => {
+                                    input[`${fact.name}.${attr}`] = 1;
+                                });
+                                
+                                const output = {};
+                                output[rule.then] = rule.confidence || 0.8;
+                                
+                                trainingExamples.push({ input, output });
+                            });
+                        }
+                    }
+                });
+                
+                if (trainingExamples.length === 0) {
+                    alert('Нет правил для обучения. Добавьте правила в базу знаний.');
+                    return;
+                }
+                
+                // Объединяем с существующими данными или заменяем их
+                let finalData = [];
+                
+                if (this.appendTrainingMode) {
+                    try {
+                        const currentData = JSON.parse(this.neuralTrainingData);
+                        finalData = [...currentData, ...trainingExamples];
+                    } catch(e) {
+                        finalData = trainingExamples;
+                    }
+                } else {
+                    finalData = trainingExamples;
+                }
+                
+                this.neuralTrainingData = JSON.stringify(finalData, null, 2);
+                this.updateTrainingDataStats();
+                
+                alert(`Загружено ${trainingExamples.length} примеров из базы знаний. Всего примеров: ${finalData.length}`);
+            },
+            
+            loadFactsAsTrainingData() {
+                const trainingExamples = [];
+                const allFacts = this.knowledgeBase.facts;
+                
+                if (allFacts.length === 0) {
+                    alert('Нет фактов в базе знаний.');
+                    return;
+                }
+                
+                // Группируем факты по типам
+                const factsByType = {};
+                allFacts.forEach(fact => {
+                    if (!factsByType[fact.type]) {
+                        factsByType[fact.type] = [];
+                    }
+                    factsByType[fact.type].push(fact);
+                });
+                
+                // Создаем примеры для классификации типов фактов
+                Object.keys(factsByType).forEach(type => {
+                    factsByType[type].forEach(fact => {
+                        const input = {};
+                        input[fact.name] = 1;
+                        
+                        // Добавляем атрибуты как признаки
+                        if (fact.attributes) {
+                            Object.keys(fact.attributes).forEach(attr => {
+                                input[`attr_${attr}`] = 1;
+                            });
+                        }
+                        
+                        // Добавляем информацию о классе, если есть
+                        if (fact.className) {
+                            input[`class_${fact.className}`] = 1;
+                        }
+                        
+                        const output = {};
+                        output[`type_${fact.type}`] = 1;
+                        
+                        trainingExamples.push({ input, output });
+                    });
+                });
+                
+                // Объединяем с существующими данными или заменяем их
+                let finalData = [];
+                
+                if (this.appendTrainingMode) {
+                    try {
+                        const currentData = JSON.parse(this.neuralTrainingData);
+                        finalData = [...currentData, ...trainingExamples];
+                    } catch(e) {
+                        finalData = trainingExamples;
+                    }
+                } else {
+                    finalData = trainingExamples;
+                }
+                
+                this.neuralTrainingData = JSON.stringify(finalData, null, 2);
+                this.updateTrainingDataStats();
+                
+                alert(`Загружено ${trainingExamples.length} примеров из фактов. Всего примеров: ${finalData.length}`);
+            },
+            
+            clearTrainingData() {
+                if (confirm('Очистить все тренировочные данные?')) {
+                    this.neuralTrainingData = '[]';
+                    this.updateTrainingDataStats();
+                    alert('Тренировочные данные очищены.');
+                }
+            },
+            
             // Импорт/экспорт
             updateExportPreview() {
                 const data = {
@@ -1608,7 +1806,7 @@
                                 { 
                                     id: 2, 
                                     type: 'simple',
-                                    if: ['высокая_температура', ' кашель'], 
+                                    if: ['высокая_температура', 'кашель'], 
                                     then: 'возможен_грипп', 
                                     confidence: 0.7 
                                 }
