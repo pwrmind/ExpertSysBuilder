@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru" x-data="{ activeTab: 'editor' }">
+<html lang="ru" x-data="appData()">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,6 +14,8 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <!-- Brain.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/brain.js/2.0.0-beta.24/browser.min.js"></script>
+    <!-- Bootstrap JS (необходим для аккордеона) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         :root { --bs-font-sans-serif: 'Inter', sans-serif; --bs-body-font-size: 0.875rem; }
         .code-font { font-family: 'Roboto Mono', monospace; font-size: 0.8rem; }
@@ -22,12 +24,14 @@
         .module-card:hover { transform: translateY(-2px); box-shadow: 0 .3rem .75rem rgba(0,0,0,.1); }
         .rule-badge { font-size: 0.7rem; }
         .nav-tabs .nav-link { font-size: 0.85rem; padding: 0.5rem 0.75rem; }
-        .tab-pane { padding-top: 1rem; }
+        .tab-content { padding-top: 1rem; }
         .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
         .timeline { position: relative; padding-left: 20px; }
         .timeline-item { position: relative; margin-bottom: 15px; }
         .timeline-marker { position: absolute; left: -20px; top: 10px; width: 10px; height: 10px; border-radius: 50%; }
         .timeline-content { margin-left: 10px; }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
     </style>
 </head>
 <body class="bg-light compact">
@@ -49,7 +53,8 @@
                 <ul class="nav nav-tabs mt-3">
                     <template x-for="tab in tabs" :key="tab.id">
                         <li class="nav-item">
-                            <a class="nav-link" :class="{ 'active': activeTab === tab.id }" href="#" @click.prevent="activeTab = tab.id">
+                            <a class="nav-link" :class="{ 'active': activeTab === tab.id }" href="#" 
+                               @click.prevent="switchTab(tab.id)">
                                 <i :class="tab.icon"></i> <span x-text="tab.name"></span>
                             </a>
                         </li>
@@ -60,7 +65,7 @@
             <!-- Основное содержимое (модули) -->
             <main>
                 <!-- Модуль редактора БЗ -->
-                <div x-show="activeTab === 'editor'" class="tab-pane fade show active">
+                <div x-show="activeTab === 'editor'">
                     <div class="row g-3">
                         <!-- Колонка 1: Онтология -->
                         <div class="col-lg-4">
@@ -88,7 +93,7 @@
                                                         <td x-text="cls.id" class="fw-bold"></td>
                                                         <td>
                                                             <input type="text" class="form-control form-control-sm border-0 p-0" 
-                                                                   x-model="cls.name" @change="saveData">
+                                                                   x-model="cls.name" @input="saveData">
                                                         </td>
                                                         <td>
                                                             <div class="d-flex flex-wrap gap-1">
@@ -130,9 +135,10 @@
                                             <div class="accordion-item border-0 mb-2">
                                                 <h6 class="accordion-header">
                                                     <button class="accordion-button collapsed py-1" type="button" 
-                                                            data-bs-toggle="collapse" :data-bs-target="'#rule' + rule.id">
+                                                            data-bs-toggle="collapse" :data-bs-target="'#rule' + rule.id"
+                                                            @click="toggleRule(rule.id)">
                                                         <span class="badge bg-primary me-2" x-text="'#' + rule.id"></span>
-                                                        <small class="truncate" x-text="rule.if.join(' AND ') + ' → ' + rule.then"></small>
+                                                        <small class="truncate" x-text="getRulePreview(rule)"></small>
                                                     </button>
                                                 </h6>
                                                 <div :id="'rule' + rule.id" class="accordion-collapse collapse">
@@ -142,8 +148,10 @@
                                                             <div class="d-flex flex-wrap gap-1 mb-1">
                                                                 <template x-for="(condition, idx) in rule.if" :key="idx">
                                                                     <div class="input-group input-group-sm" style="width: auto">
-                                                                        <input type="text" class="form-control" x-model="rule.if[idx]" @change="saveData">
-                                                                        <button class="btn btn-outline-danger" @click="removeCondition(rule, idx)">
+                                                                        <input type="text" class="form-control" 
+                                                                               x-model="rule.if[idx]" @input="saveData">
+                                                                        <button class="btn btn-outline-danger" 
+                                                                                @click="removeCondition(rule, idx)">
                                                                             <i class="bi bi-x"></i>
                                                                         </button>
                                                                     </div>
@@ -156,14 +164,14 @@
                                                         <div class="mb-2">
                                                             <label class="form-label small">Заключение (THEN):</label>
                                                             <input type="text" class="form-control form-control-sm" 
-                                                                   x-model="rule.then" @change="saveData">
+                                                                   x-model="rule.then" @input="saveData">
                                                         </div>
                                                         <div class="mb-2">
                                                             <label class="form-label small">
                                                                 Достоверность: <span x-text="rule.confidence"></span>
                                                             </label>
                                                             <input type="range" class="form-range" min="0" max="1" step="0.05" 
-                                                                   x-model="rule.confidence" @change="saveData">
+                                                                   x-model="rule.confidence" @input="saveData">
                                                         </div>
                                                         <div class="d-flex justify-content-between">
                                                             <button class="btn btn-sm btn-danger" @click="removeRule(rule)">
@@ -206,18 +214,18 @@
                                                     <tr>
                                                         <td x-text="fact.id" class="fw-bold"></td>
                                                         <td>
-                                                            <input type="text" class="form-control form-control-sm border-0 p-0" 
-                                                                   x-model="fact.name" @change="saveData">
+                                                            <input type="text" class="form-control form-control-sm" 
+                                                                   x-model="fact.name" @input="saveData">
                                                         </td>
                                                         <td>
-                                                            <select class="form-select form-select-sm border-0" x-model="fact.type" @change="saveData">
+                                                            <select class="form-select form-select-sm" x-model="fact.type" @change="saveData">
                                                                 <option value="симптом">Симптом</option>
                                                                 <option value="диагноз">Диагноз</option>
                                                                 <option value="действие">Действие</option>
                                                             </select>
                                                         </td>
                                                         <td>
-                                                            <select class="form-select form-select-sm border-0" x-model="fact.category" @change="saveData">
+                                                            <select class="form-select form-select-sm" x-model="fact.category" @change="saveData">
                                                                 <option value="аппаратный">Аппаратный</option>
                                                                 <option value="программный">Программный</option>
                                                                 <option value="сетевой">Сетевой</option>
@@ -240,7 +248,7 @@
                 </div>
 
                 <!-- Модуль логического вывода -->
-                <div x-show="activeTab === 'inference'" class="tab-pane fade">
+                <div x-show="activeTab === 'inference'">
                     <div class="row g-3">
                         <!-- Левая колонка: Ввод запроса -->
                         <div class="col-md-5">
@@ -357,7 +365,7 @@
                 </div>
 
                 <!-- Модуль нейросети (Brain.js) -->
-                <div x-show="activeTab === 'neural'" class="tab-pane fade">
+                <div x-show="activeTab === 'neural'">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <div class="card module-card">
@@ -439,7 +447,7 @@
                 </div>
 
                 <!-- Модуль импорта/экспорта -->
-                <div x-show="activeTab === 'io'" class="tab-pane fade">
+                <div x-show="activeTab === 'io'">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <div class="card module-card">
@@ -571,7 +579,7 @@
                 </div>
 
                 <!-- Модуль проекта и настроек -->
-                <div x-show="activeTab === 'project'" class="tab-pane fade">
+                <div x-show="activeTab === 'project'">
                     <h2 class="h5 mb-3"><i class="bi bi-folder"></i> Проект и настройки</h2>
                     <div class="row">
                         <div class="col-md-6">
@@ -580,15 +588,15 @@
                                     <h6 class="card-title"><i class="bi bi-info-circle"></i> Информация о проекте</h6>
                                     <div class="mb-2">
                                         <label class="form-label small">Название проекта</label>
-                                        <input type="text" class="form-control form-control-sm" x-model="project.name">
+                                        <input type="text" class="form-control form-control-sm" x-model="project.name" @input="saveData">
                                     </div>
                                     <div class="mb-2">
                                         <label class="form-label small">Описание</label>
-                                        <textarea class="form-control form-control-sm" rows="3" x-model="project.description"></textarea>
+                                        <textarea class="form-control form-control-sm" rows="3" x-model="project.description" @input="saveData"></textarea>
                                     </div>
                                     <div class="mb-2">
                                         <label class="form-label small">Предметная область</label>
-                                        <input type="text" class="form-control form-control-sm" x-model="project.domain">
+                                        <input type="text" class="form-control form-control-sm" x-model="project.domain" @input="saveData">
                                     </div>
                                 </div>
                             </div>
@@ -706,7 +714,12 @@
                 if (saved) {
                     try {
                         const data = JSON.parse(saved);
-                        Object.assign(this, data);
+                        // Восстанавливаем только основные данные, чтобы не перезаписывать методы
+                        if (data.project) this.project = data.project;
+                        if (data.knowledgeBase) this.knowledgeBase = data.knowledgeBase;
+                        if (data.neuralNetworks) this.neuralNetworks = data.neuralNetworks;
+                        if (data.neuralTrainingData) this.neuralTrainingData = data.neuralTrainingData;
+                        if (data.neuralConfig) this.neuralConfig = data.neuralConfig;
                     } catch(e) {
                         console.error('Ошибка загрузки:', e);
                     }
@@ -721,6 +734,21 @@
             },
             
             // Методы
+            // Переключение вкладок
+            switchTab(tabId) {
+                this.activeTab = tabId;
+                // Обновляем предпросмотр экспорта при переходе на вкладку импорта/экспорта
+                if (tabId === 'io') {
+                    this.updateExportPreview();
+                }
+            },
+            
+            // Предпросмотр правила
+            getRulePreview(rule) {
+                if (!rule.if || !rule.then) return 'Пустое правило';
+                return rule.if.join(' И ') + ' → ' + rule.then;
+            },
+            
             // Работа с онтологией
             addClass() {
                 const newId = Math.max(...this.knowledgeBase.ontology.map(c => c.id), 0) + 1;
@@ -770,6 +798,12 @@
             removeCondition(rule, idx) {
                 rule.if.splice(idx, 1);
                 this.saveData();
+            },
+            
+            toggleRule(ruleId) {
+                // Эта функция нужна для обработки клика на аккордеоне
+                // Bootstrap сам управляет отображением через data-bs-toggle
+                console.log('Переключение правила:', ruleId);
             },
             
             // Работа с фактами
@@ -959,7 +993,7 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `expertSys_${this.project.name}_${new Date().toISOString().slice(0,10)}.json`;
+                a.download = `expertSys_${this.project.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.json`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -1000,7 +1034,9 @@
                     // Применяем выбранный режим импорта
                     switch(this.importMode) {
                         case 'replace':
-                            Object.assign(this, this.importFileData);
+                            if (this.importFileData.project) this.project = this.importFileData.project;
+                            if (this.importFileData.knowledgeBase) this.knowledgeBase = this.importFileData.knowledgeBase;
+                            if (this.importFileData.neuralNetworks) this.neuralNetworks = this.importFileData.neuralNetworks;
                             break;
                         case 'merge':
                             // Объединяем массивы, избегая дубликатов
@@ -1089,10 +1125,19 @@
             loadFromStorage() {
                 const saved = localStorage.getItem('expertSysData');
                 if (saved) {
-                    const data = JSON.parse(saved);
-                    Object.assign(this, data);
-                    this.updateExportPreview();
-                    alert('Данные загружены из LocalStorage!');
+                    try {
+                        const data = JSON.parse(saved);
+                        if (data.project) this.project = data.project;
+                        if (data.knowledgeBase) this.knowledgeBase = data.knowledgeBase;
+                        if (data.neuralNetworks) this.neuralNetworks = data.neuralNetworks;
+                        if (data.neuralTrainingData) this.neuralTrainingData = data.neuralTrainingData;
+                        if (data.neuralConfig) this.neuralConfig = data.neuralConfig;
+                        
+                        this.updateExportPreview();
+                        alert('Данные загружены из LocalStorage!');
+                    } catch (e) {
+                        alert('Ошибка загрузки данных: ' + e.message);
+                    }
                 } else {
                     alert('Нет сохраненных данных.');
                 }
@@ -1163,11 +1208,33 @@
                                 { id: 2, name: 'медленная_загрузка', type: 'симптом', category: 'производительность' }
                             ]
                         }
+                    },
+                    legal: {
+                        project: {
+                            name: 'Юридическая система',
+                            description: 'Правовая консультация по гражданским делам',
+                            domain: 'Юриспруденция'
+                        },
+                        knowledgeBase: {
+                            ontology: [
+                                { id: 1, name: 'Дело', attributes: ['тип', 'статус', 'сложность'] },
+                                { id: 2, name: 'Документ', attributes: ['вид', 'срок', 'важность'] }
+                            ],
+                            rules: [
+                                { id: 1, if: ['договор_нарушен', 'убытки_есть'], then: 'подать_иск', confidence: 0.8 },
+                                { id: 2, if: ['срок_исковой_давности', 'пропущен'], then: 'восстановить_срок', confidence: 0.6 }
+                            ],
+                            facts: [
+                                { id: 1, name: 'договор_нарушен', type: 'симптом', category: 'договорное' },
+                                { id: 2, name: 'убытки_есть', type: 'симптом', category: 'финансовое' }
+                            ]
+                        }
                     }
                 };
                 
                 if (examples[type]) {
-                    Object.assign(this, examples[type]);
+                    this.project = examples[type].project;
+                    this.knowledgeBase = examples[type].knowledgeBase;
                     this.saveData();
                     this.updateExportPreview();
                     alert(`Загружен пример: ${examples[type].project.name}`);
