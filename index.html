@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru" x-data="appData()">
+<html lang="ru" x-data="appData()" x-init="init()">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -35,11 +35,14 @@
         .attribute-input { border: 1px solid #dee2e6; border-radius: 0.25rem; padding: 0.25rem; }
         .fact-attributes { max-height: 150px; overflow-y: auto; }
         .custom-fact-badge { cursor: pointer; }
+        [x-cloak] { display: none !important; }
+        main > div { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body class="bg-light compact">
     <div class="container-fluid py-2">
-        <div id="app" x-data="appData()" x-init="init()">
+        <div id="app">
             <!-- Заголовок и навигация -->
             <header class="mb-3 border-bottom pb-2">
                 <div class="d-flex justify-content-between align-items-center">
@@ -67,7 +70,7 @@
             </header>
 
             <!-- Основное содержимое (модули) -->
-            <main>
+            <main x-cloak>
                 <!-- Модуль редактора БЗ -->
                 <div x-show="activeTab === 'editor'">
                     <div class="row g-3">
@@ -479,7 +482,7 @@
                 </div>
 
                 <!-- Модуль нейросети (Brain.js) -->
-                <div x-show="activeTab === 'neural'" class="tab-pane fade">
+                <div x-show="activeTab === 'neural'">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <div class="card module-card">
@@ -561,7 +564,7 @@
                 </div>
 
                 <!-- Модуль импорта/экспорта -->
-                <div x-show="activeTab === 'io'" class="tab-pane fade">
+                <div x-show="activeTab === 'io'">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <div class="card module-card">
@@ -693,7 +696,7 @@
                 </div>
 
                 <!-- Модуль проекта и настроек -->
-                <div x-show="activeTab === 'project'" class="tab-pane fade">
+                <div x-show="activeTab === 'project'">
                     <h2 class="h5 mb-3"><i class="bi bi-folder"></i> Проект и настройки</h2>
                     <div class="row">
                         <div class="col-md-6">
@@ -1605,7 +1608,7 @@
                                 { 
                                     id: 2, 
                                     type: 'simple',
-                                    if: ['высокая_температура', 'кашель'], 
+                                    if: ['высокая_температура', ' кашель'], 
                                     then: 'возможен_грипп', 
                                     confidence: 0.7 
                                 }
